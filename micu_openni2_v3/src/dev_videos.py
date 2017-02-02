@@ -30,6 +30,10 @@ Current features:
             client  commands: connect, check, close
             servers response: save, wait
 
+test started at 22:50pm 17Aug2016
+
+saved 275399 frames 764 sessions each session with 360 frames
+
 Execution:
 NETWORKING
 #Open a terminal, set server IP, and run the server
@@ -44,7 +48,8 @@ python dev1_videos.py # second terminal
 '''
 from primesense import openni2
 from primesense import _openni2 as c_api
-import cv2, cv, sys, time, os, csv
+import cv2#, cv, 
+import sys, time, os, csv
 import numpy as np
 import pandas as pd
 from time import localtime, strftime, gmtime
@@ -59,6 +64,8 @@ red    = (0,0,255)
 colors = [green, blue, red]
 #confs  = [1.0, 0.5, 0.0]
 
+only_rgb = True
+
 # Device resolution
 w = 640
 h = 480
@@ -67,7 +74,8 @@ x = h/2
 y = w/2
 
 # Device number
-devN=1
+devN=-1
+assert devN != -1, 'change devN to reflect current device number'
 
 ## Array to store the image modalities+overlayed_skeleton (4images)
 #rgb   = np.zeros((480,640,3), np.uint8)
@@ -89,31 +97,41 @@ dev = openni2.Device.open_any()
 
 ## create the streams stream
 rgb_stream = dev.create_color_stream()
-depth_stream = dev.create_depth_stream()
+if not only_rgb:
+    depth_stream = dev.create_depth_stream()
 
 
 
 
 
-##configure the depth_stream
-depth_stream.set_video_mode(c_api.OniVideoMode(pixelFormat=c_api.OniPixelFormat.ONI_PIXEL_FORMAT_DEPTH_1_MM, resolutionX=w, resolutionY=h, fps=30))
-## Check and configure the depth_stream -- set automatically based on bus speed
+if not only_rgb:
+    ##configure the depth_stream
+    depth_stream.set_video_mode(c_api.OniVideoMode(pixelFormat=c_api.OniPixelFormat.ONI_PIXEL_FORMAT_DEPTH_1_MM, resolutionX=w, resolutionY=h, fps=30))
+    ## Check and configure the depth_stream -- set automatically based on bus speed
 #print 'The rgb video mode is', rgb_stream.get_video_mode() # Checks rgb video configuration
 rgb_stream.set_video_mode(c_api.OniVideoMode(pixelFormat=c_api.OniPixelFormat.ONI_PIXEL_FORMAT_RGB888, resolutionX=w, resolutionY=h, fps=30))
 
-## Configure the mirroring, which by default is enabled (True)
-depth_stream.set_mirroring_enabled(False)
+if not only_rgb:
+    ## Configure the mirroring, which by default is enabled (True)
+    depth_stream.set_mirroring_enabled(False)
 rgb_stream.set_mirroring_enabled(False)
 
 ## start the stream
 rgb_stream.start()
-depth_stream.start()
+if not only_rgb:
+    depth_stream.start()
 
-## synchronize the streams
-dev.set_depth_color_sync_enabled(True) # synchronize the streams
+if not only_rgb:
+    ## synchronize the streams
+    dev.set_depth_color_sync_enabled(True) # synchronize the streams
+    ## IMPORTANT: ALIGN DEPTH2RGB (depth wrapped to match rgb stream)
+    dev.set_image_registration_mode(openni2.IMAGE_REGISTRATION_DEPTH_TO_COLOR)
+else:
+    ## synchronize the streams
+    dev.set_depth_color_sync_enabled(False) # only RGB to be retruved
 
-## IMPORTANT: ALIGN DEPTH2RGB (depth wrapped to match rgb stream)
-dev.set_image_registration_mode(openni2.IMAGE_REGISTRATION_DEPTH_TO_COLOR)
+
+
 
 
 def get_rgb():
@@ -156,7 +174,7 @@ def get_depth():
 #get_depth
 
 
-def createFolders(actor='patient_0', save2sdcard=False):
+def createFolders(actor='labmate_0', save2sdcard=False):
     """
     Checks if a sdcard is connected and if a folder exists under 
         root/icudata/patient_<number>
@@ -178,7 +196,7 @@ def createFolders(actor='patient_0', save2sdcard=False):
     #usr = "carlos" #os.listdir('/home/')[0]
     #local = '/home/'+usr+'/Documents/Python/MICU/micu_openni2_v3/'
     local = "/home/carlos/Documents/Python/MICU/micu_openni2_v3/"
-    root = local+'icudata{}/'.format(devN)
+    root = local+'vrldata{}/'.format(devN)
     storage='Local'
     #end ifsdcards
     
@@ -254,10 +272,11 @@ if __name__ == "__main__":
     #time.sleep(20) # secs pause! for startup
     #devN = 1
     synctype  = "relaxed"
-    actorname = "patient_0"
+    #synctype  = "strict"
+    actorname = "labmate_0"
 
     ## Flags
-    vis_frames       = True  # True   # display frames
+    vis_frames       = False  # True   # display frames
     save_frames_flag = False  # save all frames
     test_flag        = True
 
@@ -265,12 +284,13 @@ if __name__ == "__main__":
     fps = 10
     c=0
     ## Runtime and Controls
-    nf  = 2000#172800# 60*60*24*2 # Number of video frames in each clip and video
+    nf  = 3600#172800# 60*60*24*2 # Number of video frames in each clip and video
     f   = 1  # frame counter
     tic = 0
     run_time   = 0
     total_t    = 0
-    fourcc=cv2.cv.CV_FOURCC('X','V','I','D')    
+    #fourcc=cv2.cv.CV_FOURCC('X','V','I','D')
+    fourcc = cv2.VideoWriter_fourcc('X','V','I','D')
     
     done = False
 
@@ -291,7 +311,7 @@ if __name__ == "__main__":
     ## Create a pandas dataframe to hold the information (index starts at 1)
     cols = ["frameN","localtime","servertime"]
     df   = pd.DataFrame(columns=cols)
-    df.loc[c] =[0,server_time,time.time()] 
+    df.loc[c] =[0,time.time(),server_time] 
     
 
 
@@ -301,27 +321,38 @@ if __name__ == "__main__":
     print "Creating Video Headers"
     ## Initialize the videowriter
     vid_num=0
-    video_rgb   = cv2.VideoWriter(folder4frames+"/rgb/dev"  +str(devN)+"rgb"  +str(vid_num)+".avi",fourcc, fps=fps, frameSize=(w,h))
-    video_depth = cv2.VideoWriter(folder4frames+"/depth/dev"+str(devN)+"depth"+str(vid_num)+".avi",fourcc, fps=fps, frameSize=(w,h))
-    video_dmap  = cv2.VideoWriter(folder4frames+"/dmap/dev" +str(devN)+"dmap" +str(vid_num)+".avi",fourcc, fps=fps, frameSize=(w,h)) 
-
+    video_rgb   = cv2.VideoWriter(folder4frames+"/rgb/dev"  +str(devN)+"rgb"  +'%03d'%vid_num+".avi",fourcc, fps=fps, frameSize=(w,h))
+    if not only_rgb:
+        video_depth = cv2.VideoWriter(folder4frames+"/depth/dev"+str(devN)+"depth"+'%03d'%vid_num+".avi",fourcc, fps=fps, frameSize=(w,h))
+        video_dmap  = cv2.VideoWriter(folder4frames+"/dmap/dev" +str(devN)+"dmap" +'%03d'%vid_num+".avi",fourcc, fps=fps, frameSize=(w,h)) 
+    print 'Video Writer creation done'
     # Get the first timestamp
     tic = time.time()
     start_t = tic
 
     ##--- main loop ---
     done     = False
+    fps_fcount = 10
+    fps_t1 = time.time()
     while not done: # view <= nviews
         ## RGB-D Streams
         rgb   = get_rgb()
-        dmap, d4d = get_depth()
+        if not only_rgb:
+            dmap, d4d = get_depth()
 
         if vis_frames: # Display the streams
-            rgbdm = np.hstack((rgb,d4d,dmap))
+            if only_rgb:
+                rgbdm = np.hstack((rgb))
+            else:
+                rgbdm = np.hstack((rgb,d4d,dmap))
             #rgbdm_small = rgbdm # orginal size
             #rgbdm_small = cv2.resize(rgbdm,(1280,240)) # medium
-            #rgbdm_small = cv2.resize(rgbdm,(640,240)) # smallest     
-            rgbdm_small = cv2.resize(rgbdm,(960,240)) # smallest 
+            #rgbdm_small = cv2.resize(rgbdm,(640,240)) # smallest
+            if only_rgb:
+                rgbdm_small = cv2.resize(rgbdm,(320,240)) # smallest
+            else:
+                rgbdm_small = cv2.resize(rgbdm,(960,240)) # smallest
+
             cv2.imshow("1:4 scale", rgbdm_small)
             ## === Keyboard Commands ===
             key = cv2.waitKey(1) & 255
@@ -330,28 +361,29 @@ if __name__ == "__main__":
                 done = True        
         #Poll the server:
         clientConnectThread.update_command("check")
-        sresponse = clientConnectThread.get_command()
+        response = clientConnectThread.get_command()
         if "_" in response:
             server_response,server_time  = response.split("_")
         else: server_reponse = response
     
         run_time = time.time()-tic
-        print "Processing frame number {}".format(f)
-        
+        #print "Processing frame number {}".format(f)
         ## === check synchronization type
         if synctype =='strict':
             if server_response == 'save':
                 video_rgb.write(rgb)    # --> rgb vid file
-                video_depth.write(d4d)  # --> depth vid file
-                video_dmap.write(dmap)  # --> dmap vid file
+                if not only_rgb:
+                    video_depth.write(d4d)  # --> depth vid file
+                    video_dmap.write(dmap)  # --> dmap vid file
                 # Write Datarows
                 df.loc[c] =[f,strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime()), server_time]             
                 f+=1
                 c+=1
         elif synctype == 'relaxed':            
             video_rgb.write(rgb)    # --> rgb vid file
-            video_depth.write(d4d)  # --> depth vid file
-            video_dmap.write(dmap)  # --> dmap vid file
+            if not only_rgb:
+                video_depth.write(d4d)  # --> depth vid file
+                video_dmap.write(dmap)  # --> dmap vid file
 
             # Write Datarows
             df.loc[c] =[f, run_time,server_time]            
@@ -366,27 +398,34 @@ if __name__ == "__main__":
             done = True
             
         if np.mod(f,nf) == 0: # close and create new csv and video
-            df.to_csv(folder4csv+"dev"+str(devN)+'_data'+str(vid_num)+'.csv')
+            df.to_csv(folder4csv+"dev"+str(devN)+'_data'+'%03d'%vid_num+'.csv')
             # release video writers
             video_rgb.release()
-            video_depth.release()
-            video_dmap.release()
+            if not only_rgb:
+                video_depth.release()
+                video_dmap.release()
             print "session {} saved".format(vid_num)
             vid_num+=1
             ## Create new video writers 
-            video_rgb   = cv2.VideoWriter(folder4frames+"/rgb/dev"  +str(devN)+"rgb"  +str(vid_num)+".avi",fourcc, fps=fps, frameSize=(w,h))
-            video_depth = cv2.VideoWriter(folder4frames+"/depth/dev"+str(devN)+"depth"+str(vid_num)+".avi",fourcc, fps=fps, frameSize=(w,h))
-            video_dmap  = cv2.VideoWriter(folder4frames+"/dmap/dev" +str(devN)+"dmap" +str(vid_num)+".avi",fourcc, fps=fps, frameSize=(w,h))    
+            video_rgb   = cv2.VideoWriter(folder4frames+"/rgb/dev"  +str(devN)+"rgb"  +'%03d'%vid_num+".avi",fourcc, fps=fps, frameSize=(w,h))
+            if not only_rgb:
+                video_depth = cv2.VideoWriter(folder4frames+"/depth/dev"+str(devN)+"depth"+'%03d'%vid_num+".avi",fourcc, fps=fps, frameSize=(w,h))
+                video_dmap  = cv2.VideoWriter(folder4frames+"/dmap/dev" +str(devN)+"dmap" +'%03d'%vid_num+".avi",fourcc, fps=fps, frameSize=(w,h))    
             # reset pandas dataframe
             df = pd.DataFrame(columns=cols)
             c=0
             ##done = True #stop after the first recording.
-
+        if vid_num == 70:
+            done = True
         #elif chr(key) =='s':  #s-key to save current screen
         #    save_frames(f,rgb,dmap,p=folder4screens)
         
         #if
         # --- keyboard commands ---
+        if (f%fps_fcount == 0):
+            fps_calc = fps_fcount/(time.time()- fps_t1)
+            fps_t1 = time.time()
+            print 'FPS calculated : %.3f'%fps_calc 
     # while
    
     # TERMINATE
@@ -394,22 +433,26 @@ if __name__ == "__main__":
     # Close carmine context and stop device    
     print "==== Closing carmine context"    
     rgb_stream.stop()
-    depth_stream.stop()
+    if not only_rgb:
+        depth_stream.stop()
+
     openni2.unload()
     # write last datapoints
     print "==== Writing last portions of data."
     vid_num=+1
     df.loc[c] =[f, run_time,server_time]
     video_rgb.write(rgb)    # write to vid file
-    video_depth.write(d4d)  # write to vid file
-    video_dmap.write(dmap)
+    if not only_rgb:
+        video_depth.write(d4d)  # write to vid file
+        video_dmap.write(dmap)
     # Write data to csv
-    df.to_csv(folder4csv+"dev"+str(devN)+'_data'+str(vid_num)+'.csv')        
+    df.to_csv(folder4csv+"dev"+str(devN)+'_data'+'%03d'%vid_num+'.csv')        
     # release video writers
     print "==== Releasing the video writers"
     video_rgb.release()
-    video_depth.release()
-    video_dmap.release()
+    if not only_rgb:
+        video_depth.release()
+        video_dmap.release()
     # Disconnect the client from the server
     print "==== Disconecting client and closing the server"
     clientConnectThread.update_command("close")
