@@ -46,15 +46,39 @@ python dev1_videos.py # second terminal
 
 @author: Carlos Torres <carlitos408@gmail.com>
 '''
+#create a logging dir and file
+import logging
+import sys, os, datetime
+from logger import StreamToLogger
+log_dir = 'logs'
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+log_filename = str(datetime.datetime.now()).replace(' ', '_') + '.log'
+
+logging.basicConfig(
+   level=logging.DEBUG,
+   format='%(asctime)s:%(levelname)s:%(name)s:%(message)s',
+   filename=os.path.join(log_dir, log_filename),
+   filemode='w'
+)
+stdout_logger = logging.getLogger('STDOUT')
+sl = StreamToLogger(stdout_logger, logging.INFO)
+sys.stdout = sl
+ 
+stderr_logger = logging.getLogger('STDERR')
+sl = StreamToLogger(stderr_logger, logging.ERROR)
+sys.stderr = sl
+
 from primesense import openni2
 from primesense import _openni2 as c_api
 import cv2#, cv, 
-import sys, time, os, csv
+import time, csv
 import numpy as np
 import pandas as pd
 from time import localtime, strftime, gmtime
 import pickle
 import client
+
 
 ## Drawing
 radius = 10
@@ -76,6 +100,10 @@ y = w/2
 # Device number
 devN=-1
 assert devN != -1, 'change devN to reflect current device number'
+
+
+
+
 
 ## Array to store the image modalities+overlayed_skeleton (4images)
 #rgb   = np.zeros((480,640,3), np.uint8)
