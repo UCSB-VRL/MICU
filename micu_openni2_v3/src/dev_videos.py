@@ -49,8 +49,14 @@ python dev1_videos.py # second terminal
 #create a logging dir and file
 import logging
 import sys, os, datetime
+
+# Device number
+devN=-1
+assert devN != -1, 'change devN to reflect current device number'
+
 from logger import StreamToLogger
-log_dir = 'logs'
+
+log_dir = 'logs_dev%03d'%devN 
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 log_filename = str(datetime.datetime.now()).replace(' ', '_') + '.log'
@@ -97,9 +103,7 @@ h = 480
 x = h/2
 y = w/2
 
-# Device number
-devN=-1
-assert devN != -1, 'change devN to reflect current device number'
+
 
 
 
