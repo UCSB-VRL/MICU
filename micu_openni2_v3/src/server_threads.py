@@ -20,7 +20,7 @@ NOTE:
 import SocketServer
 import threading
 import time, sys
-from time import strftime, gmtime
+from time import strftime, localtime
 
 devs = []
 roll = []
@@ -39,7 +39,7 @@ terminate = False # termiantion flag
 dev_dict = {'dev1':{'PORT':50007},
             'dev2':{'PORT':50008},
             'dev3':{'PORT':50009},
-            #'dev4':{'PORT':50010}
+            'dev4':{'PORT':50010}
             }
 
 roll = {}
@@ -68,7 +68,7 @@ class MyTCPHandler(SocketServer.BaseRequestHandler):
         self.cmd   = self.data[1]
         self.msg   = ""
         self.tic   = time.time() # server time tic
-        self.time  = strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime())
+        self.time  = strftime("%a, %d %b %Y %H:%M:%S +0000", localtime())
 
 
         dev = "dev{}".format(self.devid)
@@ -146,7 +146,7 @@ class MyTCPHandler(SocketServer.BaseRequestHandler):
             print "All DISCONNECTED"
     
         #print 'msg: ', self.msg
-        self.request.sendall(self.msg.lower()+'='+ strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime()))
+        self.request.sendall(self.msg.lower()+'='+ strftime("%a, %d %b %Y %H:%M:%S +0000", localtime()))
         # print'Devices ready: ', devs
 #MyTCPHandler()
 
